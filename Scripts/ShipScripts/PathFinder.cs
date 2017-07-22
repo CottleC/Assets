@@ -11,7 +11,6 @@ public class PathFinder : MonoBehaviour {
 	public  List<GameObject> doors = new List<GameObject> ();
     public  float lineWidth = 1f;
     public  GameObject firstPoint; // for debug, can be removed
-    public  byte shortestPAth = byte.MaxValue; //used to check optimal pathing
     public  List<List<int>> input = new List<List<int>>();//used for djikstra dfs spath
 
 	// Use this for initialization
