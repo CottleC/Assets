@@ -13,102 +13,126 @@ public class PathFinder : MonoBehaviour {
     public  GameObject firstPoint; // for debug, can be removed
     public  List<List<int>> input = new List<List<int>>();//used for djikstra dfs spath
 
+	public void InitData(){
+		allEdges.Clear ();
+		//foreach room, populate the allEdges dict
+		List<GameObject> Rooms = new List<GameObject>(GameObject.FindGameObjectsWithTag("Rooms"));
+		//get each room
+		foreach(GameObject room in Rooms) {
+			List<GameObject> nodes = new List<GameObject>();
+			//get each roomPOI within that room
+			foreach(Transform item in room.transform) {
+				if (item.tag.Equals("RoomPOI")) {
+					nodes.Add(item.gameObject);
+				}
+			}
+			//Debug.Log("Number of waypoints:" + nodes.Count);
+			//build edgelist based on all these thingies
+			for (int i =0; i<nodes.Count; i++) {
+				for(int j = 0; j < nodes.Count; j++) {//connect every node to every node above it in the node list
+					if (nodes[i] != nodes[j]) {
+						allEdges.Add(new KeyValuePair<GameObject, GameObject>(nodes[i], nodes[j]));
+					}
+				}
+			}
+		}
+
+		//Debug.Log("Built edglist of size:" + allEdges.Count);
+		ApplyDoorPaths ();
+		//add each connection set to the djikstra input
+		for (int x = 0; x<allEdges.Count; x++) {
+			if (x == 0) {
+				input.Add(new List<int>{ allEdges[0].Key.GetHashCode() ,  allEdges[0].Value.GetHashCode()});
+			}
+			bool foundThisKey = false;
+			for (int y = 0; y<input.Count; y++) {
+				if (input[y][0]==allEdges[x].Key.GetHashCode()) {
+					foundThisKey = true;
+					if (!input[y].Contains(allEdges[x].Value.GetHashCode())) {
+						input[y].Add(allEdges[x].Value.GetHashCode());
+					}
+				}
+			}
+			if (foundThisKey == false) {
+				input.Add(new List<int> { allEdges[x].Key.GetHashCode(), allEdges[x].Value.GetHashCode() });
+			}
+		}
+		//input should be populated.
+		//Debug.Log("input has "+input.Count);
+		foreach (List<int> il in input) {
+			string s = "List: ";
+			foreach (int i in il) {
+				s += " ," + i;
+			}
+			//Debug.Log(s);
+		}
+
+		//more debug
+		foreach(GameObject go in GameObject.FindGameObjectsWithTag("RoomPOI")) {
+			GameObject debugMesh = new GameObject(go.GetHashCode().ToString());
+			debugMesh.AddComponent<TextMesh>();
+			TextMesh tm = debugMesh.GetComponent<TextMesh>();
+			tm.text = go.GetHashCode().ToString();
+			//tm.fontSize = 24;
+			debugMesh.transform.position = go.transform.position+Vector3.up;
+			debugMesh.transform.LookAt(debugMesh.transform.position-Vector3.up);
+			debugMesh.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
+		}
+
+		//more debug
+		foreach(GameObject go in GameObject.FindGameObjectsWithTag("RoomDoors")) {
+			GameObject debugMesh = new GameObject(go.GetHashCode().ToString());
+			debugMesh.AddComponent<TextMesh>();
+			TextMesh tm = debugMesh.GetComponent<TextMesh>();
+			tm.text = go.GetHashCode().ToString();
+			//tm.fontSize = 24;
+			debugMesh.transform.position = go.transform.position+Vector3.up;
+			debugMesh.transform.LookAt(debugMesh.transform.position-Vector3.up);
+			debugMesh.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
+		}
+	}
+
+	void ApplyDoorPaths(){
+		//Great! now build connections between doors!
+		//door paths are just the two closest nodes to each door
+		GameObject[] pois = GameObject.FindGameObjectsWithTag ("RoomPOI");
+		Vector3 shipOffset = new Vector3 (1000.01f,1.1f, 1.01f);
+		pois = pois.OrderBy (poi => Vector3.Distance (shipOffset, poi.transform.position)).ToArray();
+		List<GameObject> POIs = new List<GameObject>(pois);
+
+		KeyValuePair<float, GameObject> first = new KeyValuePair<float,GameObject>(float.MaxValue, null);
+		KeyValuePair<float, GameObject> second = new KeyValuePair<float, GameObject>(float.MaxValue, null);
+		//Debug.Log("Checking "+POIs.Count + " nodes against " + doors.Count + " doors");
+		for (int i = 0; i < doors.Count; i++) {
+			//get first
+			for (int j = 0; j < POIs.Count; j++) {
+				if (Vector3.Distance(POIs[j].transform.position, doors[i].transform.position) <= first.Key) {
+					first = new KeyValuePair<float, GameObject>(Vector3.Distance(POIs[j].transform.position, doors[i].transform.position), POIs[j]);
+				}
+			}
+			//get second
+			for (int j = 0; j < POIs.Count; j++) {
+				if (POIs[j] != first.Value) {
+					if (Vector3.Distance(POIs[j].transform.position, doors[i].transform.position) <= second.Key) {
+						second = new KeyValuePair<float, GameObject>(Vector3.Distance(POIs[j].transform.position, doors[i].transform.position), POIs[j]);
+					}
+				}
+			}
+			//found the two closest nodes, add them to the edgelist
+			if (first.Value != null && second.Value != null) {
+				allEdges.Add(new KeyValuePair<GameObject, GameObject>(first.Value, second.Value));
+				allEdges.Add(new KeyValuePair<GameObject, GameObject>(second.Value, first.Value));
+				first = new KeyValuePair<float, GameObject>(float.MaxValue, null);
+				second = new KeyValuePair<float, GameObject>(float.MaxValue, null);
+			}
+		}
+		//Debug.Log("Added doorpaths to edglist, size is now:" + allEdges.Count);
+
+	}
+
 	// Use this for initialization
 	void Start () {
-        //foreach room, populate the allEdges dict
-        List<GameObject> Rooms = new List<GameObject>(GameObject.FindGameObjectsWithTag("Rooms"));
-        //get each room
-        foreach(GameObject room in Rooms) {
-            List<GameObject> nodes = new List<GameObject>();
-            //get each roomPOI within that room
-            foreach(Transform item in room.transform) {
-                if (item.tag.Equals("RoomPOI")) {
-                    nodes.Add(item.gameObject);
-                }
-            }
-            //Debug.Log("Number of waypoints:" + nodes.Count);
-            //build edgelist based on all these thingies
-            for (int i =0; i<nodes.Count; i++) {
-                for(int j = 0; j < nodes.Count; j++) {//connect every node to every node above it in the node list
-                    if (nodes[i] != nodes[j]) {
-                        allEdges.Add(new KeyValuePair<GameObject, GameObject>(nodes[i], nodes[j]));
-                    }
-                }
-            }
-        }
-
-        Debug.Log("Built edglist of size:" + allEdges.Count);
-        //Great! now build connections between doors!
-        //door paths are just the two closest nodes to each door
-        List<GameObject> POIs = new List<GameObject>(GameObject.FindGameObjectsWithTag("RoomPOI"));
-        List<GameObject> doors = new List<GameObject>(GameObject.FindGameObjectsWithTag("RoomDoors"));
-        KeyValuePair<float, GameObject> first = new KeyValuePair<float,GameObject>(float.MaxValue, null);
-        KeyValuePair<float, GameObject> second = new KeyValuePair<float, GameObject>(float.MaxValue, null);
-        Debug.Log("Checking "+POIs.Count + " nodes against " + doors.Count + " doors");
-        for (int i = 0; i < doors.Count; i++) {
-            //get first
-            for (int j = 0; j < POIs.Count; j++) {
-                if (Vector3.Distance(POIs[j].transform.position, doors[i].transform.position) <= first.Key) {
-                    first = new KeyValuePair<float, GameObject>(Vector3.Distance(POIs[j].transform.position, doors[i].transform.position), POIs[j]);
-                }
-            }
-            //get second
-            for (int j = 0; j < POIs.Count; j++) {
-                if (POIs[j] != first.Value) {
-                    if (Vector3.Distance(POIs[j].transform.position, doors[i].transform.position) <= second.Key) {
-                        second = new KeyValuePair<float, GameObject>(Vector3.Distance(POIs[j].transform.position, doors[i].transform.position), POIs[j]);
-                    }
-                }
-            }
-            //found the two closest nodes, add them to the edgelist
-            if (first.Value != null && second.Value != null) {
-                allEdges.Add(new KeyValuePair<GameObject, GameObject>(first.Value, second.Value));
-                allEdges.Add(new KeyValuePair<GameObject, GameObject>(second.Value, first.Value));
-                first = new KeyValuePair<float, GameObject>(float.MaxValue, null);
-                second = new KeyValuePair<float, GameObject>(float.MaxValue, null);
-            }
-        }
-        Debug.Log("Added doorpaths to edglist, size is now:" + allEdges.Count);
-
-        //add each connection set to the djikstra input
-        for (int x = 0; x<allEdges.Count; x++) {
-            if (x == 0) {
-                input.Add(new List<int>{ allEdges[0].Key.GetHashCode() ,  allEdges[0].Value.GetHashCode()});
-            }
-            bool foundThisKey = false;
-            for (int y = 0; y<input.Count; y++) {
-                if (input[y][0]==allEdges[x].Key.GetHashCode()) {
-                    foundThisKey = true;
-                    if (!input[y].Contains(allEdges[x].Value.GetHashCode())) {
-                        input[y].Add(allEdges[x].Value.GetHashCode());
-                    }
-                }
-            }
-            if (foundThisKey == false) {
-                input.Add(new List<int> { allEdges[x].Key.GetHashCode(), allEdges[x].Value.GetHashCode() });
-            }
-        }
-        //input should be populated.
-        //Debug.Log("input has "+input.Count);
-        foreach (List<int> il in input) {
-            string s = "List: ";
-                foreach (int i in il) {
-                s += " ," + i;
-            }
-            //Debug.Log(s);
-        }
-
-        //more debug
-        foreach(GameObject go in GameObject.FindGameObjectsWithTag("RoomPOI")) {
-            GameObject debugMesh = new GameObject(go.GetHashCode().ToString());
-            debugMesh.AddComponent<TextMesh>();
-            TextMesh tm = debugMesh.GetComponent<TextMesh>();
-            tm.text = go.GetHashCode().ToString();
-            //tm.fontSize = 24;
-            debugMesh.transform.position = go.transform.position+Vector3.up;
-            debugMesh.transform.LookAt(debugMesh.transform.position-Vector3.up);
-            debugMesh.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
-        }
+		InitData ();
     }
 
     // Update is called once per frame
@@ -160,7 +184,7 @@ public class PathFinder : MonoBehaviour {
         intermediatePoints = FindShortestPath(allNodes, firstPoint, endPoint);
 
         //do some cleanup if necessary
-        if (intermediatePoints.ElementAt(intermediatePoints.Count - 1) == eo) {
+		if ((intermediatePoints.Count>0) && (intermediatePoints.ElementAt(intermediatePoints.Count - 1) == eo)) {
 			CleanUpPath(ref intermediatePoints);
 			ApplyBackwardShortcut(ref intermediatePoints, startPoint);
 			if (!disableRecursiveSelfCheck) {
@@ -169,7 +193,7 @@ public class PathFinder : MonoBehaviour {
         }
         else {
             intermediatePoints.Clear();
-            Debug.Log("No route to destination found");
+            //Debug.Log("No route to destination found");
         }
 
 		return(intermediatePoints);
@@ -218,18 +242,28 @@ public class PathFinder : MonoBehaviour {
             if (neighbors.Count() == 0) {
                 path.Remove(current);
                 visitedSet.Add(current);
-                current = path.ElementAt(path.Count - 1);
+				if (path.Count > 1) {
+					current = path.ElementAt (path.Count () - 1);
+				} else {
+					path = new List<GameObject>();
+					return path;
+				}
             }
             if (neighbors.Contains(destination)) {
                 path.Add(destination);
-                break;
+				return path;
             }
 
             //chose next node as the neighbor with the shortest distence to the destination
             GameObject nearest = FindNearest(neighbors, destination);
-            path.Add(nearest);
-            current = nearest;
-            visitedSet.Add(current);
+			if (nearest == null) {
+				path = new List<GameObject>();
+				return path;
+			} else {
+				path.Add(nearest);
+				current = nearest;
+				visitedSet.Add(current);
+			}
         }
         return path;
     }

@@ -1,18 +1,23 @@
 ﻿using UnityEngine;
-using System.Collections;
 using UnityEditor;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 [CustomEditor(typeof(ShipBuilderScript))]
 public class DoorBuilderEditor : Editor {
 	public string args = "";
 	public GameObject ship;
-	private string gameDataProjectFilePath = "/StreamingAssets/data.dat";
+	public PathFinder pathFinder;
+	//a group of open doors, start, end map to a List of nodes to visit
+	public Dictionary<byte[],byte[]> lookupTable = new Dictionary<byte[], byte[]>();
+	private string gameDataProjectFilePath = "/StreamingAssets/data.bytes";
 
 	public void Awake(){
-		Debug.Log ("Ship bound");
+		Debug.Log ("Binding tools to ship in scene ");
 		ship = GameObject.FindGameObjectWithTag ("AShip");
+		pathFinder = GameObject.FindGameObjectWithTag ("Tools").GetComponent<PathFinder> ();
 	}
 
 	public override void OnInspectorGUI() {
@@ -92,36 +97,22 @@ public class DoorBuilderEditor : Editor {
 		string filePath = Application.dataPath + gameDataProjectFilePath;
 		(new FileInfo (filePath)).Directory.Create ();
 
-		//F_M_L
-		//a group of open doors, start, end map to a List of nodes to visit
-		Dictionary<byte[],byte[]> lookupTable = new Dictionary<byte[], byte[]>();
+		GameObject[] doors = GameObject.FindGameObjectsWithTag ("RoomDoors");
+		GameObject[] pois = GameObject.FindGameObjectsWithTag ("RoomPOI");
+		Vector3 shipOffset = new Vector3 (1000.01f,1.1f, 1.01f); // need a janky position off the ship to get unique distances to pois
+		doors = doors.OrderBy(door => Vector3.Distance(shipOffset, door.transform.position)).ToArray();
+		pois = pois.OrderBy(poi => Vector3.Distance(shipOffset, poi.transform.position)).ToArray();
+		bool[] doorState = new bool[doors.Count()];
 
+		for (int i = 0; i < doorState.Count(); i++) {
+			for(int j =0; j < doorState.Count(); j++){
+				doorState[j] = !doorState[j];
+				GenerateLookupTableSlice (doors, doorState, pois);
 
-
-		byte inc = 1;
-		for (int i = 0; i < 254; i++) {
-			byte[] mapState = { inc, 0, 0 };
-			byte[] path = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-			lookupTable.Add (mapState, path);
-			inc++;
+			}
 		}
-
-		inc = 1;
-		for (int i = 0; i < 255; i++) {
-			byte[] mapState = { 0, inc, 0 };
-			byte[] path = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-			lookupTable.Add (mapState, path);
-			inc++;
-		}
-
-		inc = 1;
-		for (int i = 0; i < 255; i++) {
-			byte[] mapState = { 0, 0, inc };
-			byte[] path = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-			lookupTable.Add (mapState, path);
-			inc++;
-		}
-
+		Debug.Log ("Table Generated");
+		Debug.Log ("Entries:"+lookupTable.Keys.Count());
 			
 		using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(filePath, FileMode.Create)))
 		{
@@ -150,5 +141,93 @@ public class DoorBuilderEditor : Editor {
 		}
 
 		Debug.Log(lookupTable.Keys.Count);
+	}
+
+	public void GenerateLookupTableSlice (GameObject[] doors, bool[] doorState, GameObject[] pois){
+		//given the state of the doors, build pathing between each point in the ship
+		//don't need to calculate a route between b->a if a-> has already been calculated
+		Dictionary<GameObject,GameObject> generatedPaths = new Dictionary<GameObject,GameObject>();
+		List<GameObject> openDoorsList = new List<GameObject>();
+		for (byte b = 0; b < doorState.Count (); b++) {
+			if (doorState [b]) {
+				openDoorsList.Add (doors.ElementAt (b));
+			}
+		}
+		pathFinder.doors = openDoorsList;
+		pathFinder.InitData();
+
+		for (int i =0; i < pois.Count(); i++) {
+			GameObject start = pois.ElementAt (i);
+				for(int j =0; j < pois.Count(); j++){
+					GameObject end = pois.ElementAt (j);
+					if(start!=end){//don't path to self
+					//if(!generatedPaths.Contains(KeyValuePair<GameObject,GameObject>(end,start))){//if this route doesn't exist backwards...
+						List<GameObject> theRoute = new List<GameObject>();
+						theRoute = pathFinder.FindPath (start, end);
+						if ((theRoute != null) && (theRoute.Count () > 0)) {
+							byte[] openDoors = ReportOpenDoors (doors, doorState);
+							byte[] route = ReportRoute (pois, theRoute.ToArray());
+							lookupTable.Add (openDoors, route);
+							//DebugRoute (theRoute, start, end, openDoorsList);
+							//Debug.Log ("Added new Route");
+						} else {
+							//Debug.Log ("Route was null");
+							byte[] openDoors = ReportOpenDoors (doors, doorState);
+							byte[] route = new byte[0];
+							lookupTable.Add (openDoors, route);
+						}
+					//}
+					//else{
+						//TODO: Implement backwards thingy
+					//}
+				}//end start==end check
+			}//end nested for
+		}//end for
+		//Debug.Log("Done with Slice");
+}
+
+	public byte[] ReportOpenDoors(GameObject[] doors, bool[] doorState){
+		List<byte> openDoors = new List<byte>();
+		for (byte b = 0; b < doorState.Count (); b++) {
+			if (doorState [b]) {
+				openDoors.Add (b);
+			}
+		}
+
+		if (openDoors.Count () > 0) {
+			return openDoors.ToArray ();
+		} else {
+			byte[] b = new byte[0];
+			return b;
+		}
+	}
+
+	//returns a list of indexes of the route if the pois list is in sorted order
+	public byte[] ReportRoute (GameObject[] pois, GameObject[] goRoute){
+		List<GameObject> poiList = new List<GameObject>(pois);
+		List<byte> route = new List<byte>();
+		for (byte b = 0; b < goRoute.Count (); b++) {
+			route.Add((byte)(poiList.IndexOf(goRoute.ElementAt(b))));
+		}
+
+		return route.ToArray();
+	}
+
+	public void DebugRoute(List<GameObject> theRoute, GameObject start, GameObject end, List<GameObject> openDoors){
+		Debug.Log ("A Route: ");
+		string nextLine = "";
+		foreach (GameObject g in openDoors) {
+			nextLine+=g.GetHashCode()+", ";
+		}
+
+		Debug.Log ("openDoors:\t"+nextLine);
+		Debug.Log ("Start:"+start.GetHashCode()+" : Finish:"+end.GetHashCode());
+		nextLine = "";
+		foreach (GameObject g in theRoute) {
+			nextLine+=g.GetHashCode()+", ";
+		}
+
+		Debug.Log ("theRoute->:\t"+nextLine);
+		Debug.Log ("-------------------------");
 	}
 }

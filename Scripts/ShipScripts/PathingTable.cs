@@ -1,15 +1,17 @@
-﻿using System.Collections;
+﻿using UnityEngine;
 using System.Collections.Generic;
-using UnityEngine;
+using System.IO;
 
 public class PathingTable : MonoBehaviour {
-	List<string> pois;
+	Dictionary<byte[],byte[]> lookupTable;
+
+	void Awake(){
+
+	}
 
 	// Use this for initialization
 	void Start () {
-		foreach (string s in pois) {
-			Debug.Log (pois);
-		}
+
 	}
 	
 	// Update is called once per frame
