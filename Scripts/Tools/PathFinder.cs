@@ -67,6 +67,7 @@ public class PathFinder : MonoBehaviour {
 			//Debug.Log(s);
 		}
 
+		/*
 		//more debug
 		foreach(GameObject go in GameObject.FindGameObjectsWithTag("RoomPOI")) {
 			GameObject debugMesh = new GameObject(go.GetHashCode().ToString());
@@ -90,6 +91,7 @@ public class PathFinder : MonoBehaviour {
 			debugMesh.transform.LookAt(debugMesh.transform.position-Vector3.up);
 			debugMesh.transform.localScale = new Vector3(0.1f,0.1f,0.1f);
 		}
+		*/
 	}
 
 	void ApplyDoorPaths(){

@@ -108,7 +108,6 @@ public class DoorBuilderEditor : Editor {
 			for(int j =0; j < doorState.Count(); j++){
 				doorState[j] = !doorState[j];
 				GenerateLookupTableSlice (doors, doorState, pois);
-
 			}
 		}
 		Debug.Log ("Table Generated");
@@ -118,10 +117,10 @@ public class DoorBuilderEditor : Editor {
 		{
 			foreach (byte[] key in lookupTable.Keys)
 			{
-				binaryWriter.Write(key[0]); //doors
-				binaryWriter.Write(key[1]); //start
-				binaryWriter.Write(key[2]); //end
-				binaryWriter.Write(lookupTable[key]); //path
+				for (byte b = 0; b < key.Count (); b++) {
+					binaryWriter.Write(key[b]);//doornum,doors,start,end
+				}
+				binaryWriter.Write(lookupTable[key]);//path
 			}
 		}
 
@@ -187,6 +186,7 @@ public class DoorBuilderEditor : Editor {
 }
 
 	public byte[] ReportOpenDoors(GameObject[] doors, bool[] doorState){
+		//TODO:ADD START AND ENDPOINT TO TAIL
 		List<byte> openDoors = new List<byte>();
 		for (byte b = 0; b < doorState.Count (); b++) {
 			if (doorState [b]) {
@@ -195,7 +195,8 @@ public class DoorBuilderEditor : Editor {
 		}
 
 		if (openDoors.Count () > 0) {
-			return openDoors.ToArray ();
+			openDoors.Insert(0, (byte)openDoors.Count());
+			return openDoors.ToArray();
 		} else {
 			byte[] b = new byte[0];
 			return b;
