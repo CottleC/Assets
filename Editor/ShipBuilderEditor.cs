@@ -132,16 +132,43 @@ public class DoorBuilderEditor : Editor {
 			{
 				//	public Dictionary<byte[],byte[]> lookupTable = new Dictionary<byte[], byte[]>();
 				//  numdoors,doors,start,end | route is numsteps,steps
-				byte numDoors = binaryReader.ReadBytes (1);
+				byte numDoors = binaryReader.ReadByte();
 				byte[] doorIds = binaryReader.ReadBytes (numDoors);
-				byte startId = binaryReader.ReadBytes (1); 
-				byte endId =  binaryReader.ReadBytes (1);
+				byte startId = binaryReader.ReadByte();
+				byte endId =  binaryReader.ReadByte();
 				//this makes the key, now read the value
-				byte numNodes = binaryReader.ReadBytes (1);
+				byte numNodes = binaryReader.ReadByte();
 				byte[] routeIds = binaryReader.ReadBytes (numNodes);
+				//need to account for 0 door situations and 0 route situation
+				int keySize=numDoors+3;
+				int valueSize = numNodes + 1;
+				byte[] key = new byte[numDoors+3];
+				byte[] value = binaryReader.ReadBytes (numNodes+1);
 
-				byte[] key = {doorIds[]};
-				byte[] value = binaryReader.ReadBytes (3);
+				if (keySize > 3) {//there were some open doors
+					byte i = 1;
+					key [0] = numDoors;
+					for (i=i; i < keySize - 2; i++) {
+						key [i] = doorIds [i - 1];
+					}
+					key [i] = startId;
+					key [i + 1] = endId;
+				} else {//there were no open doors
+					key[0]=numDoors;
+					key [1] = startId;
+					key [2] = endId;
+				}
+
+				if (valueSize > 1) {//there were some nodes
+					byte i = 1;
+					value [0] = numNodes;
+					for (i=i; i < valueSize; i++) {
+						value [i] = routeIds [i - 1];
+					}
+				} else {//there were no nodes
+					value[0]=numNodes;
+				}
+
 				lookupTable.Add(key,value);
 
 				if (binaryReader.BaseStream.Position == binaryReader.BaseStream.Length)
@@ -149,7 +176,7 @@ public class DoorBuilderEditor : Editor {
 			}
 		}
 
-		Debug.Log(lookupTable.Keys.Count);
+		Debug.Log("Rebuilt table has: "+ lookupTable.Keys.Count);
 	}
 
 	public void GenerateLookupTableSlice (GameObject[] doors, bool[] doorState, GameObject[] pois){
@@ -199,20 +226,16 @@ public class DoorBuilderEditor : Editor {
 	public byte[] ReportOpenDoors(GameObject[] doors, bool[] doorState){
 		//TODO:ADD START AND ENDPOINT TO TAIL
 		List<byte> openDoors = new List<byte>();
+
 		for (byte b = 0; b < doorState.Count (); b++) {
 			if (doorState [b]) {
 				openDoors.Add (b);
 			}
 		}
+		openDoors.Insert(0, (byte)openDoors.Count());
 
-		if (openDoors.Count () > 0) {
-			openDoors.Insert(0, (byte)openDoors.Count());
-			return openDoors.ToArray();
-		} else {
-			byte[] b = new byte[1];
-			b [0] = 0;
-			return b;
-		}
+		return openDoors.ToArray();
+
 	}
 
 	//returns a list of indexes of the route if the pois list is in sorted order
