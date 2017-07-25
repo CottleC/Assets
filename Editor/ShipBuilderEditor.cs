@@ -118,7 +118,7 @@ public class DoorBuilderEditor : Editor {
 			foreach (byte[] key in lookupTable.Keys)
 			{
 				for (byte b = 0; b < key.Count (); b++) {
-					binaryWriter.Write(key[b]);//doornum,doors,start,end
+					binaryWriter.Write(key[b]);//numdoors,doors,start,end | route is numsteps,steps
 				}
 				binaryWriter.Write(lookupTable[key]);//path
 			}
@@ -130,7 +130,17 @@ public class DoorBuilderEditor : Editor {
 		{
 			while (true)
 			{
-				byte[] key = binaryReader.ReadBytes (3);
+				//	public Dictionary<byte[],byte[]> lookupTable = new Dictionary<byte[], byte[]>();
+				//  numdoors,doors,start,end | route is numsteps,steps
+				byte numDoors = binaryReader.ReadBytes (1);
+				byte[] doorIds = binaryReader.ReadBytes (numDoors);
+				byte startId = binaryReader.ReadBytes (1); 
+				byte endId =  binaryReader.ReadBytes (1);
+				//this makes the key, now read the value
+				byte numNodes = binaryReader.ReadBytes (1);
+				byte[] routeIds = binaryReader.ReadBytes (numNodes);
+
+				byte[] key = {doorIds[]};
 				byte[] value = binaryReader.ReadBytes (3);
 				lookupTable.Add(key,value);
 
@@ -167,12 +177,13 @@ public class DoorBuilderEditor : Editor {
 							byte[] openDoors = ReportOpenDoors (doors, doorState);
 							byte[] route = ReportRoute (pois, theRoute.ToArray());
 							lookupTable.Add (openDoors, route);
-							//DebugRoute (theRoute, start, end, openDoorsList);
+							//DebugRoute (route, start, end, openDoors);
 							//Debug.Log ("Added new Route");
 						} else {
 							//Debug.Log ("Route was null");
 							byte[] openDoors = ReportOpenDoors (doors, doorState);
-							byte[] route = new byte[0];
+							byte[] route = new byte[1];
+							route [0] = 0;
 							lookupTable.Add (openDoors, route);
 						}
 					//}
@@ -198,7 +209,8 @@ public class DoorBuilderEditor : Editor {
 			openDoors.Insert(0, (byte)openDoors.Count());
 			return openDoors.ToArray();
 		} else {
-			byte[] b = new byte[0];
+			byte[] b = new byte[1];
+			b [0] = 0;
 			return b;
 		}
 	}
@@ -207,6 +219,7 @@ public class DoorBuilderEditor : Editor {
 	public byte[] ReportRoute (GameObject[] pois, GameObject[] goRoute){
 		List<GameObject> poiList = new List<GameObject>(pois);
 		List<byte> route = new List<byte>();
+		route.Add ((byte)goRoute.Count());
 		for (byte b = 0; b < goRoute.Count (); b++) {
 			route.Add((byte)(poiList.IndexOf(goRoute.ElementAt(b))));
 		}
@@ -214,21 +227,31 @@ public class DoorBuilderEditor : Editor {
 		return route.ToArray();
 	}
 
-	public void DebugRoute(List<GameObject> theRoute, GameObject start, GameObject end, List<GameObject> openDoors){
+	public void DebugRoute(byte[] theRoute, GameObject start, GameObject end, byte[] openDoors){
 		Debug.Log ("A Route: ");
-		string nextLine = "";
-		foreach (GameObject g in openDoors) {
-			nextLine+=g.GetHashCode()+", ";
+		string doorsText="";
+		string routeText = "";
+		byte box = 0;
+
+		for (int i = 0; i < openDoors.Count (); i++) {
+			if (i == 0) {
+				Debug.Log ("# open doors: " + openDoors [i] + ".");
+			} else {
+				doorsText += openDoors[i]+", ";
+			}
 		}
 
-		Debug.Log ("openDoors:\t"+nextLine);
+		for (int i = 0; i < theRoute.Count (); i++) {
+			if (i == 0) {
+				Debug.Log ("This route has: " + theRoute [i] + " nodes.");
+			} else {
+				routeText += theRoute[i]+", ";
+			}
+		}
+
+		Debug.Log ("openDoorIDs:\t"+doorsText);
 		Debug.Log ("Start:"+start.GetHashCode()+" : Finish:"+end.GetHashCode());
-		nextLine = "";
-		foreach (GameObject g in theRoute) {
-			nextLine+=g.GetHashCode()+", ";
-		}
-
-		Debug.Log ("theRoute->:\t"+nextLine);
+		Debug.Log ("theRouteIDs->:\t"+routeText);
 		Debug.Log ("-------------------------");
 	}
 }
