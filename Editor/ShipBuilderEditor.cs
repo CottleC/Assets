@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System;
 
 [CustomEditor(typeof(ShipBuilderScript))]
 public class DoorBuilderEditor : Editor {
@@ -11,7 +12,7 @@ public class DoorBuilderEditor : Editor {
 	public GameObject ship;
 	public PathFinder pathFinder;
 	//a group of open doors, start, end map to a List of nodes to visit
-	public Dictionary<byte[],byte[]> lookupTable = new Dictionary<byte[], byte[]>();
+	public Dictionary<byte[],byte[]> lookupTable = new Dictionary<byte[], byte[]>(new ArrayEqualityComparer());
 	private string gameDataProjectFilePath = "/StreamingAssets/data.bytes";
 
 	public void Awake(){
@@ -104,12 +105,13 @@ public class DoorBuilderEditor : Editor {
 		pois = pois.OrderBy(poi => Vector3.Distance(shipOffset, poi.transform.position)).ToArray();
 		bool[] doorState = new bool[doors.Count()];
 
-		for (int i = 0; i < doorState.Count(); i++) {
-			for(int j =0; j < doorState.Count(); j++){
-				doorState[j] = !doorState[j];
-				GenerateLookupTableSlice (doors, doorState, pois);
-			}
+		double count = Math.Pow(2, doorState.Length);
+		for (int i = 0; i < count; i++) {
+			string str = Convert.ToString (i, 2).PadLeft (doorState.Length, '0');
+			doorState = str.Select ((x) => x == '1').ToArray ();
+			GenerateLookupTableSlice (doors, doorState, pois);
 		}
+
 		Debug.Log ("Table Generated");
 		Debug.Log ("Entries:"+lookupTable.Keys.Count());
 			
@@ -203,15 +205,29 @@ public class DoorBuilderEditor : Editor {
 						if ((theRoute != null) && (theRoute.Count () > 0)) {
 							byte[] openDoors = ReportOpenDoors (doors, doorState);
 							byte[] route = ReportRoute (pois, theRoute.ToArray());
-							lookupTable.Add (openDoors, route);
+							byte[] startFin = new byte[]{(byte)i,(byte)j};
+							byte[] lookupKey = new byte[openDoors.Length+startFin.Length];
+							openDoors.CopyTo (lookupKey, 0);
+							startFin.CopyTo (lookupKey, openDoors.Length);
+						{//don't add start->end if end->start already exists
+							byte[] falseKey = new byte[openDoors.Length+startFin.Length];
+							byte[] finStart = new byte[]{(byte)j,(byte)i};
+							openDoors.CopyTo (falseKey, 0);
+							finStart.CopyTo (falseKey, openDoors.Length);
+							if(lookupTable.ContainsKey(falseKey)){
+								//Debug.Log ("omg a false key!");
+								continue;
+							}
+						}
+							lookupTable.Add (lookupKey, route);
 							//DebugRoute (route, start, end, openDoors);
 							//Debug.Log ("Added new Route");
 						} else {
 							//Debug.Log ("Route was null");
-							byte[] openDoors = ReportOpenDoors (doors, doorState);
-							byte[] route = new byte[1];
-							route [0] = 0;
-							lookupTable.Add (openDoors, route);
+							//byte[] openDoors = ReportOpenDoors (doors, doorState);
+							//byte[] route = new byte[1];
+							//route [0] = 0;
+							//lookupTable.Add (openDoors, route);
 						}
 					//}
 					//else{
@@ -276,5 +292,52 @@ public class DoorBuilderEditor : Editor {
 		Debug.Log ("Start:"+start.GetHashCode()+" : Finish:"+end.GetHashCode());
 		Debug.Log ("theRouteIDs->:\t"+routeText);
 		Debug.Log ("-------------------------");
+	}
+
+	public class ArrayEqualityComparer : EqualityComparer<byte[]>
+	{
+		// You could make this a per-instance field with a constructor parameter
+		private static readonly EqualityComparer<byte> elementComparer
+		= EqualityComparer<byte>.Default;
+		public override bool Equals(byte[] first, byte[] second)
+		{
+			if (first == second)
+			{
+				return true;
+			}
+			if (first == null || second == null)
+			{
+				return false;
+			}
+			if (first.Length != second.Length)
+			{
+				return false;
+			}
+			for (int i = 0; i < first.Length; i++)
+			{
+				if (!(first[i]==second[i]))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		public override int GetHashCode(byte[] array)
+		{
+			unchecked
+			{
+				if (array == null)
+				{
+					return 0;
+				}
+				int hash = 17;
+				foreach (byte element in array)
+				{
+					hash = hash * 31 + elementComparer.GetHashCode(element);
+				}
+				return hash;
+			}
+		}
 	}
 }
