@@ -104,15 +104,19 @@ public class DoorBuilderEditor : Editor {
 		doors = doors.OrderBy(door => Vector3.Distance(shipOffset, door.transform.position)).ToArray();
 		pois = pois.OrderBy(poi => Vector3.Distance(shipOffset, poi.transform.position)).ToArray();
 		bool[] doorState = new bool[doors.Count()];
-
 		double count = Math.Pow(2, doorState.Length);
+		List<double> sliceGenTime = new List<double>();
 		for (int i = 0; i < count; i++) {
 			string str = Convert.ToString (i, 2).PadLeft (doorState.Length, '0');
 			doorState = str.Select ((x) => x == '1').ToArray ();
+			var watch = System.Diagnostics.Stopwatch.StartNew();
 			GenerateLookupTableSlice (doors, doorState, pois);
+			watch.Stop ();
+			double elapsedMs = watch.ElapsedMilliseconds;
+			sliceGenTime.Add (elapsedMs);
 		}
-
-		Debug.Log ("Table Generated");
+		double total = sliceGenTime.Sum(x => Convert.ToDouble(x));
+		Debug.Log ("Table Generated:"+ count+ " slices at avg slice time:"+(total/1000)/sliceGenTime.Count()+", Total gen time::"+total/1000);
 		Debug.Log ("Entries:"+lookupTable.Keys.Count());
 			
 		using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(filePath, FileMode.Create)))
@@ -193,12 +197,13 @@ public class DoorBuilderEditor : Editor {
 		}
 		pathFinder.doors = openDoorsList;
 		pathFinder.InitData();
-
+		int skippedSelfRoomPaths = 0;
 		for (int i =0; i < pois.Count(); i++) {
 			GameObject start = pois.ElementAt (i);
 				for(int j =0; j < pois.Count(); j++){
 					GameObject end = pois.ElementAt (j);
-					if(start!=end){//don't path to self
+					if(start!=end &&
+					(start.transform.parent.gameObject != end.transform.parent.gameObject)){//don't path to self
 					//if(!generatedPaths.Contains(KeyValuePair<GameObject,GameObject>(end,start))){//if this route doesn't exist backwards...
 						List<GameObject> theRoute = new List<GameObject>();
 						theRoute = pathFinder.FindPath (start, end);
@@ -234,9 +239,13 @@ public class DoorBuilderEditor : Editor {
 						//TODO: Implement backwards thingy
 					//}
 				}//end start==end check
+				else if((start.transform.parent.gameObject == end.transform.parent.gameObject)){
+					skippedSelfRoomPaths++;
+				}
 			}//end nested for
 		}//end for
 		//Debug.Log("Done with Slice");
+		//Debug.Log("Skipped:" +skippedSelfRoomPaths);
 }
 
 	public byte[] ReportOpenDoors(GameObject[] doors, bool[] doorState){
