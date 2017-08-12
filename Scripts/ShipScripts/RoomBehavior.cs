@@ -69,7 +69,7 @@ public class RoomBehavior : ClickBehavior {
     }
 
     public void Register(GameObject g) {
-        //find the first room with null occupant and put this gameobject into that slot
+        //find the first tile with null occupant and put this gameobject into that slot
         List<KeyValuePair<GameObject, GameObject>> kvps = new List<KeyValuePair<GameObject, GameObject>>(POIs);
         foreach (KeyValuePair<GameObject, GameObject> kvp in kvps) {
             if (kvp.Value == null) {

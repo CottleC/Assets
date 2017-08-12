@@ -6,7 +6,6 @@ public class DoorBehavior : ClickBehavior {
     public bool locked = false;
     // Use this for initialization
     void Start() {
-
     }
 
     // Update is called once per frame

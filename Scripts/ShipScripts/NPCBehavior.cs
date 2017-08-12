@@ -10,12 +10,10 @@ public class NPCBehavior : ClickBehavior {
     public RoomBehavior currentRoom;
 	public float unitSpeed = 3.0f;
 	public List<GameObject> intermediatePoints = new List<GameObject>();
-	public PathFinder pathFinder;
-
+	public List<GameObject> selectionQ = MouseScript.selectionQ;
     // Use this for initialization
     void Start() {
 		//find the nearest open roomslot and move there.
-		this.pathFinder = GameObject.FindGameObjectWithTag("AShip").GetComponent<PathFinder>();
 		MoveToNearestOpenSlot();
     }
 
@@ -55,7 +53,9 @@ public class NPCBehavior : ClickBehavior {
             //register with new room
             rb.Register(gameObject);
             this.currentRoom = rb;
-			this.intermediatePoints = this.pathFinder.FindPath(this.gameObject, this.navigationTarget.gameObject);
+			if (intermediatePoints == null) {
+				Debug.Log ("No route to location");
+			}
         }
         else {
             Debug.Log("Target Room has no space");
